@@ -79,6 +79,8 @@ export default function Home() {
     weather,
     weatherLoading,
     distances,
+    elevationLoading,
+    hasRealElevation,
   } = useGolfEngine();
 
   return (
@@ -157,7 +159,21 @@ export default function Home() {
             </button>
             <div className="text-center">
               <div className="text-3xl font-bold">Hole {currentHole.holeNumber}</div>
-              <div className="text-xs text-muted">Par {currentHole.par}</div>
+              <div className="text-xs text-muted">
+                Par {currentHole.par}
+                {slopeEnabled && (
+                  <>
+                    {' · '}
+                    {hasRealElevation ? (
+                      <span className="text-accent">live elevation</span>
+                    ) : elevationLoading ? (
+                      'loading elevation…'
+                    ) : (
+                      'estimated elevation'
+                    )}
+                  </>
+                )}
+              </div>
             </div>
             <button
               type="button"

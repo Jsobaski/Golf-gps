@@ -9,6 +9,7 @@ import {
   PlaysLikeResult,
   WeatherData,
 } from '@/utils/playsLikeEngine';
+import { fetchElevationsFeet, metersToFeet } from '@/utils/elevation';
 
 const AUTO_DETECT_RADIUS_MILES = 5;
 const YARDS_PER_MILE = 1760;
@@ -36,6 +37,12 @@ interface PositionState {
   accuracy: number;
 }
 
+interface HoleElevationFeet {
+  front: number;
+  center: number;
+  back: number;
+}
+
 function courseAnchor(course: GolfCourse) {
   return course.holes[0].greenCenter;
 }
@@ -51,6 +58,12 @@ export function useGolfEngine() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
+
+  const [holeElevations, setHoleElevations] = useState<Record<number, HoleElevationFeet>>({});
+  const [elevationLoading, setElevationLoading] = useState(false);
+
+  const [userElevationOverride, setUserElevationOverride] = useState<number | null>(null);
+  const lastUserElevationFetchRef = useRef<string | null>(null);
 
   const watchIdRef = useRef<number | null>(null);
 
@@ -168,6 +181,67 @@ export function useGolfEngine() {
     };
   }, [selectedCourse]);
 
+  useEffect(() => {
+    if (!selectedCourse) {
+      setHoleElevations({});
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchHoleElevations(course: GolfCourse) {
+      setElevationLoading(true);
+      try {
+        const points = course.holes.flatMap((hole) => [
+          hole.greenFront,
+          hole.greenCenter,
+          hole.greenBack,
+        ]);
+        const elevationsFeet = await fetchElevationsFeet(points);
+        if (cancelled) return;
+
+        const result: Record<number, HoleElevationFeet> = {};
+        course.holes.forEach((hole, i) => {
+          result[hole.holeNumber] = {
+            front: elevationsFeet[i * 3],
+            center: elevationsFeet[i * 3 + 1],
+            back: elevationsFeet[i * 3 + 2],
+          };
+        });
+        setHoleElevations(result);
+      } catch {
+        if (!cancelled) setHoleElevations({});
+      } finally {
+        if (!cancelled) setElevationLoading(false);
+      }
+    }
+
+    fetchHoleElevations(selectedCourse);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCourse]);
+
+  useEffect(() => {
+    if (!position || position.altitude !== null) return;
+
+    const key = `${position.lat.toFixed(3)},${position.lng.toFixed(3)}`;
+    if (lastUserElevationFetchRef.current === key) return;
+    lastUserElevationFetchRef.current = key;
+
+    let cancelled = false;
+    fetchElevationsFeet([{ lat: position.lat, lng: position.lng }])
+      .then(([feet]) => {
+        if (!cancelled && feet !== undefined) setUserElevationOverride(feet);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [position]);
+
   const currentHole: HoleData | null = selectedCourse
     ? selectedCourse.holes[currentHoleIndex] ?? null
     : null;
@@ -175,19 +249,24 @@ export function useGolfEngine() {
   const distances: HoleDistances | null = useMemo(() => {
     if (!position || !currentHole) return null;
 
-    const targets: Array<[keyof HoleDistances, { lat: number; lng: number; elevation?: number }]> = [
-      ['front', currentHole.greenFront],
-      ['center', currentHole.greenCenter],
-      ['back', currentHole.greenBack],
+    const realElevation = holeElevations[currentHole.holeNumber];
+
+    const targets: Array<[keyof HoleDistances, { lat: number; lng: number }, number]> = [
+      ['front', currentHole.greenFront, realElevation?.front ?? currentHole.greenCenter.elevation],
+      ['center', currentHole.greenCenter, realElevation?.center ?? currentHole.greenCenter.elevation],
+      ['back', currentHole.greenBack, realElevation?.back ?? currentHole.greenCenter.elevation],
     ];
 
-    const userElevation = position.altitude ?? currentHole.greenCenter.elevation;
+    // Device altitude is meters; hole elevations above are already feet.
+    const deviceElevationFeet = position.altitude !== null ? metersToFeet(position.altitude) : null;
 
     const result = {} as HoleDistances;
-    for (const [key, target] of targets) {
+    for (const [key, target, targetElevation] of targets) {
       const raw = calculateDistance(position.lat, position.lng, target.lat, target.lng);
       const bearing = calculateBearing(position.lat, position.lng, target.lat, target.lng);
-      const targetElevation = target.elevation ?? currentHole.greenCenter.elevation;
+      // Falling back to targetElevation (rather than 0) neutralizes slope
+      // impact when we have no real reading for the golfer's own elevation.
+      const userElevation = deviceElevationFeet ?? userElevationOverride ?? targetElevation;
       const playsLike = computePlaysLike(
         raw,
         userElevation,
@@ -200,7 +279,7 @@ export function useGolfEngine() {
     }
 
     return result;
-  }, [position, currentHole, slopeEnabled, weather]);
+  }, [position, currentHole, slopeEnabled, weather, holeElevations, userElevationOverride]);
 
   function selectCourse(courseId: string | null) {
     setManualCourseId(courseId);
@@ -228,5 +307,7 @@ export function useGolfEngine() {
     weatherLoading,
     weatherError,
     distances,
+    elevationLoading,
+    hasRealElevation: currentHole ? holeElevations[currentHole.holeNumber] !== undefined : false,
   };
 }
