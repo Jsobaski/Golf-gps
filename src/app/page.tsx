@@ -1,6 +1,7 @@
 'use client';
 
 import { useGolfEngine, TargetDistances } from '@/hooks/useGolfEngine';
+import { AimDirection } from '@/utils/playsLikeEngine';
 
 function DistanceRow({
   label,
@@ -31,6 +32,34 @@ function DistanceRow({
         </span>
       </div>
     </div>
+  );
+}
+
+function AimRecommendation({
+  aimOffsetYards,
+  aimDirection,
+}: {
+  aimOffsetYards: number;
+  aimDirection: AimDirection;
+}) {
+  const isStraight = aimDirection === 'straight';
+
+  return (
+    <section className="flex items-center justify-between rounded-xl bg-surface p-4">
+      <span className="text-sm text-muted">Aim</span>
+      <div className="flex items-center gap-2">
+        {!isStraight && (
+          <span className="font-mono text-2xl font-bold text-accent">
+            {aimDirection === 'left' ? '←' : '→'}
+          </span>
+        )}
+        <span className="text-sm font-semibold text-accent">
+          {isStraight
+            ? 'Straight at the pin'
+            : `${aimOffsetYards} yds ${aimDirection === 'left' ? 'Left' : 'Right'} of pin`}
+        </span>
+      </div>
+    </section>
   );
 }
 
@@ -155,6 +184,13 @@ export default function Home() {
               <div className="p-6 text-center text-sm text-muted">Waiting for GPS position…</div>
             )}
           </section>
+
+          {distances && (
+            <AimRecommendation
+              aimOffsetYards={distances.center.playsLike.aimOffsetYards}
+              aimDirection={distances.center.playsLike.aimDirection}
+            />
+          )}
 
           <section className="flex items-center justify-between rounded-xl bg-surface p-4 text-sm">
             <span className="text-muted">Conditions</span>
