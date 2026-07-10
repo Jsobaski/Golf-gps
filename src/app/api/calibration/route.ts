@@ -5,8 +5,10 @@ const HASH_KEY = 'golf-gps-calibration';
 const TARGETS = ['front', 'center', 'back'] as const;
 
 function getRedis(): Redis | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Support both the plain Upstash marketplace naming and Vercel's legacy
+  // "KV" naming (what the Vercel Storage integration actually provisions).
+  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
   return new Redis({ url, token });
 }
