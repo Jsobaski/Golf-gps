@@ -75,3 +75,24 @@ export function clearCalibrationPoint(
   persist(updated);
   return updated;
 }
+
+// Merges a store fetched from the shared backend over the local cache —
+// incoming (shared) entries win, since they represent the pooled result of
+// everyone's calibration, not just this device's.
+export function mergeCalibrationStores(base: CalibrationStore, incoming: CalibrationStore): CalibrationStore {
+  const merged: CalibrationStore = { ...base };
+
+  for (const [courseId, courseCal] of Object.entries(incoming)) {
+    merged[courseId] = { ...merged[courseId] };
+    for (const [holeNumberStr, holeCal] of Object.entries(courseCal)) {
+      const holeNumber = Number(holeNumberStr);
+      merged[courseId][holeNumber] = { ...merged[courseId][holeNumber], ...holeCal };
+    }
+  }
+
+  return merged;
+}
+
+export function persistCalibration(store: CalibrationStore) {
+  persist(store);
+}

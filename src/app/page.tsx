@@ -1,6 +1,6 @@
 'use client';
 
-import { useGolfEngine, TargetDistances } from '@/hooks/useGolfEngine';
+import { useGolfEngine, TargetDistances, CalibrationSyncStatus } from '@/hooks/useGolfEngine';
 import { AimDirection } from '@/utils/playsLikeEngine';
 import { CalibrationTarget, HoleCalibration } from '@/utils/calibration';
 
@@ -64,28 +64,45 @@ function AimRecommendation({
   );
 }
 
+function syncStatusLabel(status: CalibrationSyncStatus): { text: string; className: string } {
+  switch (status) {
+    case 'synced':
+      return { text: 'Shared with everyone testing this course', className: 'text-accent' };
+    case 'unavailable':
+      return { text: 'Sharing not set up yet · saved on this device only', className: 'text-muted' };
+    case 'offline':
+      return { text: 'Could not reach server · saved on this device only', className: 'text-muted' };
+    default:
+      return { text: 'Checking sync status…', className: 'text-muted' };
+  }
+}
+
 function CalibrationPanel({
   calibration,
   onCalibrate,
   onClear,
   disabled,
+  syncStatus,
 }: {
   calibration: HoleCalibration | undefined;
   onCalibrate: (target: CalibrationTarget) => void;
   onClear: (target: CalibrationTarget) => void;
   disabled: boolean;
+  syncStatus: CalibrationSyncStatus;
 }) {
   const targets: Array<{ key: CalibrationTarget; label: string }> = [
     { key: 'front', label: 'Front' },
     { key: 'center', label: 'Center' },
     { key: 'back', label: 'Back' },
   ];
+  const status = syncStatusLabel(syncStatus);
 
   return (
     <section className="rounded-xl bg-surface p-4">
-      <p className="mb-3 text-xs text-muted">
+      <p className="mb-1 text-xs text-muted">
         Standing on the green? Tap a target to save your real GPS spot and improve accuracy for this hole.
       </p>
+      <p className={`mb-3 text-[10px] ${status.className}`}>{status.text}</p>
       <div className="grid grid-cols-3 gap-2">
         {targets.map(({ key, label }) => {
           const isSet = Boolean(calibration?.[key]);
@@ -130,6 +147,7 @@ export default function Home() {
     holeCalibration,
     calibrateTarget,
     clearCalibrationTarget,
+    syncStatus,
   } = useGolfEngine();
 
   return (
@@ -262,6 +280,7 @@ export default function Home() {
             onCalibrate={calibrateTarget}
             onClear={clearCalibrationTarget}
             disabled={!position}
+            syncStatus={syncStatus}
           />
 
           <section className="flex items-center justify-between rounded-xl bg-surface p-4 text-sm">

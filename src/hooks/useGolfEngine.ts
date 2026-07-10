@@ -14,10 +14,20 @@ import {
   loadCalibration,
   saveCalibrationPoint,
   clearCalibrationPoint,
+  mergeCalibrationStores,
+  persistCalibration,
   CalibrationStore,
   CalibrationTarget,
   HoleCalibration,
 } from '@/utils/calibration';
+import {
+  fetchSharedCalibration,
+  pushCalibrationPoint,
+  pushClearCalibration,
+  CalibrationSyncUnavailableError,
+} from '@/utils/calibrationSync';
+
+export type CalibrationSyncStatus = 'unknown' | 'synced' | 'unavailable' | 'offline';
 
 const AUTO_DETECT_RADIUS_MILES = 5;
 const YARDS_PER_MILE = 1760;
@@ -74,11 +84,37 @@ export function useGolfEngine() {
   const lastUserElevationFetchRef = useRef<string | null>(null);
 
   const [calibration, setCalibration] = useState<CalibrationStore>({});
+  const [syncStatus, setSyncStatus] = useState<CalibrationSyncStatus>('unknown');
 
   const watchIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    setCalibration(loadCalibration());
+    const local = loadCalibration();
+    setCalibration(local);
+
+    let cancelled = false;
+
+    async function syncFromServer() {
+      try {
+        const shared = await fetchSharedCalibration();
+        if (cancelled) return;
+        const merged = mergeCalibrationStores(local, shared);
+        persistCalibration(merged);
+        setCalibration(merged);
+        setSyncStatus('synced');
+      } catch (err) {
+        if (cancelled) return;
+        setSyncStatus(err instanceof CalibrationSyncUnavailableError ? 'unavailable' : 'offline');
+      }
+    }
+
+    syncFromServer();
+    const interval = setInterval(syncFromServer, 5 * 60 * 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -323,17 +359,30 @@ export function useGolfEngine() {
 
   function calibrateTarget(target: CalibrationTarget) {
     if (!selectedCourse || !currentHole || !position) return;
-    const updated = saveCalibrationPoint(selectedCourse.id, currentHole.holeNumber, target, {
-      lat: position.lat,
-      lng: position.lng,
-    });
+    const point = { lat: position.lat, lng: position.lng };
+
+    // Optimistic local save so this works even with a weak signal on the
+    // course; the server push happens in the background.
+    const updated = saveCalibrationPoint(selectedCourse.id, currentHole.holeNumber, target, point);
     setCalibration(updated);
+
+    pushCalibrationPoint(selectedCourse.id, currentHole.holeNumber, target, point)
+      .then(() => setSyncStatus('synced'))
+      .catch((err) => {
+        setSyncStatus(err instanceof CalibrationSyncUnavailableError ? 'unavailable' : 'offline');
+      });
   }
 
   function clearCalibrationTarget(target: CalibrationTarget) {
     if (!selectedCourse || !currentHole) return;
     const updated = clearCalibrationPoint(selectedCourse.id, currentHole.holeNumber, target);
     setCalibration(updated);
+
+    pushClearCalibration(selectedCourse.id, currentHole.holeNumber, target)
+      .then(() => setSyncStatus('synced'))
+      .catch((err) => {
+        setSyncStatus(err instanceof CalibrationSyncUnavailableError ? 'unavailable' : 'offline');
+      });
   }
 
   const holeCalibration: HoleCalibration | undefined =
@@ -366,5 +415,6 @@ export function useGolfEngine() {
     holeCalibration,
     calibrateTarget,
     clearCalibrationTarget,
+    syncStatus,
   };
 }
