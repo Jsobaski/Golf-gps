@@ -2,6 +2,7 @@
 
 import { useGolfEngine, TargetDistances } from '@/hooks/useGolfEngine';
 import { AimDirection } from '@/utils/playsLikeEngine';
+import { CalibrationTarget, HoleCalibration } from '@/utils/calibration';
 
 function DistanceRow({
   label,
@@ -63,6 +64,51 @@ function AimRecommendation({
   );
 }
 
+function CalibrationPanel({
+  calibration,
+  onCalibrate,
+  onClear,
+  disabled,
+}: {
+  calibration: HoleCalibration | undefined;
+  onCalibrate: (target: CalibrationTarget) => void;
+  onClear: (target: CalibrationTarget) => void;
+  disabled: boolean;
+}) {
+  const targets: Array<{ key: CalibrationTarget; label: string }> = [
+    { key: 'front', label: 'Front' },
+    { key: 'center', label: 'Center' },
+    { key: 'back', label: 'Back' },
+  ];
+
+  return (
+    <section className="rounded-xl bg-surface p-4">
+      <p className="mb-3 text-xs text-muted">
+        Standing on the green? Tap a target to save your real GPS spot and improve accuracy for this hole.
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {targets.map(({ key, label }) => {
+          const isSet = Boolean(calibration?.[key]);
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={disabled}
+              onClick={() => (isSet ? onClear(key) : onCalibrate(key))}
+              className={`flex flex-col items-center gap-1 rounded-lg px-2 py-3 text-xs font-medium disabled:opacity-30 ${
+                isSet ? 'bg-accent text-background' : 'bg-surface-alt text-foreground'
+              }`}
+            >
+              <span>{label}</span>
+              <span className="text-[10px] opacity-80">{isSet ? '✓ calibrated · tap to clear' : 'tap to set'}</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   const {
     position,
@@ -81,6 +127,9 @@ export default function Home() {
     distances,
     elevationLoading,
     hasRealElevation,
+    holeCalibration,
+    calibrateTarget,
+    clearCalibrationTarget,
   } = useGolfEngine();
 
   return (
@@ -207,6 +256,13 @@ export default function Home() {
               aimDirection={distances.center.playsLike.aimDirection}
             />
           )}
+
+          <CalibrationPanel
+            calibration={holeCalibration}
+            onCalibrate={calibrateTarget}
+            onClear={clearCalibrationTarget}
+            disabled={!position}
+          />
 
           <section className="flex items-center justify-between rounded-xl bg-surface p-4 text-sm">
             <span className="text-muted">Conditions</span>

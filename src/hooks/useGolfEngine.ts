@@ -10,6 +10,14 @@ import {
   WeatherData,
 } from '@/utils/playsLikeEngine';
 import { fetchElevationsFeet, metersToFeet } from '@/utils/elevation';
+import {
+  loadCalibration,
+  saveCalibrationPoint,
+  clearCalibrationPoint,
+  CalibrationStore,
+  CalibrationTarget,
+  HoleCalibration,
+} from '@/utils/calibration';
 
 const AUTO_DETECT_RADIUS_MILES = 5;
 const YARDS_PER_MILE = 1760;
@@ -65,7 +73,13 @@ export function useGolfEngine() {
   const [userElevationOverride, setUserElevationOverride] = useState<number | null>(null);
   const lastUserElevationFetchRef = useRef<string | null>(null);
 
+  const [calibration, setCalibration] = useState<CalibrationStore>({});
+
   const watchIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setCalibration(loadCalibration());
+  }, []);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -131,6 +145,26 @@ export function useGolfEngine() {
     setCurrentHoleIndex(0);
   }, [selectedCourse?.id]);
 
+  // Applies any real GPS points captured on the course over the mock
+  // hole data, so distance/elevation/wind math all key off real coordinates
+  // wherever a target has been calibrated.
+  const effectiveHoles: HoleData[] | null = useMemo(() => {
+    if (!selectedCourse) return null;
+    const courseCalibration = calibration[selectedCourse.id];
+    if (!courseCalibration) return selectedCourse.holes;
+
+    return selectedCourse.holes.map((hole) => {
+      const cal = courseCalibration[hole.holeNumber];
+      if (!cal) return hole;
+      return {
+        ...hole,
+        greenFront: cal.front ?? hole.greenFront,
+        greenCenter: cal.center ? { ...hole.greenCenter, ...cal.center } : hole.greenCenter,
+        greenBack: cal.back ?? hole.greenBack,
+      };
+    });
+  }, [selectedCourse, calibration]);
+
   useEffect(() => {
     if (!selectedCourse) {
       setWeather(null);
@@ -182,17 +216,17 @@ export function useGolfEngine() {
   }, [selectedCourse]);
 
   useEffect(() => {
-    if (!selectedCourse) {
+    if (!selectedCourse || !effectiveHoles) {
       setHoleElevations({});
       return;
     }
 
     let cancelled = false;
 
-    async function fetchHoleElevations(course: GolfCourse) {
+    async function fetchHoleElevations(holes: HoleData[]) {
       setElevationLoading(true);
       try {
-        const points = course.holes.flatMap((hole) => [
+        const points = holes.flatMap((hole) => [
           hole.greenFront,
           hole.greenCenter,
           hole.greenBack,
@@ -201,7 +235,7 @@ export function useGolfEngine() {
         if (cancelled) return;
 
         const result: Record<number, HoleElevationFeet> = {};
-        course.holes.forEach((hole, i) => {
+        holes.forEach((hole, i) => {
           result[hole.holeNumber] = {
             front: elevationsFeet[i * 3],
             center: elevationsFeet[i * 3 + 1],
@@ -216,12 +250,14 @@ export function useGolfEngine() {
       }
     }
 
-    fetchHoleElevations(selectedCourse);
+    fetchHoleElevations(effectiveHoles);
 
     return () => {
       cancelled = true;
     };
-  }, [selectedCourse]);
+    // effectiveHoles is a derived array (new reference on course/calibration
+    // change only), safe to depend on directly here.
+  }, [selectedCourse, effectiveHoles]);
 
   useEffect(() => {
     if (!position || position.altitude !== null) return;
@@ -242,8 +278,8 @@ export function useGolfEngine() {
     };
   }, [position]);
 
-  const currentHole: HoleData | null = selectedCourse
-    ? selectedCourse.holes[currentHoleIndex] ?? null
+  const currentHole: HoleData | null = effectiveHoles
+    ? effectiveHoles[currentHoleIndex] ?? null
     : null;
 
   const distances: HoleDistances | null = useMemo(() => {
@@ -285,6 +321,24 @@ export function useGolfEngine() {
     setManualCourseId(courseId);
   }
 
+  function calibrateTarget(target: CalibrationTarget) {
+    if (!selectedCourse || !currentHole || !position) return;
+    const updated = saveCalibrationPoint(selectedCourse.id, currentHole.holeNumber, target, {
+      lat: position.lat,
+      lng: position.lng,
+    });
+    setCalibration(updated);
+  }
+
+  function clearCalibrationTarget(target: CalibrationTarget) {
+    if (!selectedCourse || !currentHole) return;
+    const updated = clearCalibrationPoint(selectedCourse.id, currentHole.holeNumber, target);
+    setCalibration(updated);
+  }
+
+  const holeCalibration: HoleCalibration | undefined =
+    selectedCourse && currentHole ? calibration[selectedCourse.id]?.[currentHole.holeNumber] : undefined;
+
   function goToHole(index: number) {
     if (!selectedCourse) return;
     const clamped = Math.max(0, Math.min(selectedCourse.holes.length - 1, index));
@@ -309,5 +363,8 @@ export function useGolfEngine() {
     distances,
     elevationLoading,
     hasRealElevation: currentHole ? holeElevations[currentHole.holeNumber] !== undefined : false,
+    holeCalibration,
+    calibrateTarget,
+    clearCalibrationTarget,
   };
 }
