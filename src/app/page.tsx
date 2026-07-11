@@ -1,7 +1,7 @@
 'use client';
 
 import { useGolfEngine, TargetDistances, CalibrationSyncStatus } from '@/hooks/useGolfEngine';
-import { AimDirection } from '@/utils/playsLikeEngine';
+import { AimDirection, estimateAimFingers } from '@/utils/playsLikeEngine';
 import { CalibrationTarget, HoleCalibration } from '@/utils/calibration';
 
 function DistanceRow({
@@ -39,27 +39,37 @@ function DistanceRow({
 function AimRecommendation({
   aimOffsetYards,
   aimDirection,
+  rawDistance,
 }: {
   aimOffsetYards: number;
   aimDirection: AimDirection;
+  rawDistance: number;
 }) {
   const isStraight = aimDirection === 'straight';
+  const fingers = estimateAimFingers(aimOffsetYards, rawDistance);
 
   return (
-    <section className="flex items-center justify-between rounded-xl bg-surface p-4">
-      <span className="text-sm text-muted">Aim</span>
-      <div className="flex items-center gap-2">
-        {!isStraight && (
-          <span className="font-mono text-2xl font-bold text-accent">
-            {aimDirection === 'left' ? '←' : '→'}
+    <section className="rounded-xl bg-surface p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted">Aim</span>
+        <div className="flex items-center gap-2">
+          {!isStraight && (
+            <span className="font-mono text-2xl font-bold text-accent">
+              {aimDirection === 'left' ? '←' : '→'}
+            </span>
+          )}
+          <span className="text-sm font-semibold text-accent">
+            {isStraight
+              ? 'Straight at the pin'
+              : `${aimOffsetYards} yds ${aimDirection === 'left' ? 'Left' : 'Right'} of pin`}
           </span>
-        )}
-        <span className="text-sm font-semibold text-accent">
-          {isStraight
-            ? 'Straight at the pin'
-            : `${aimOffsetYards} yds ${aimDirection === 'left' ? 'Left' : 'Right'} of pin`}
-        </span>
+        </div>
       </div>
+      {!isStraight && (
+        <p className="mt-1 text-right text-xs text-muted">
+          ≈ {fingers} {fingers === 1 ? 'finger' : 'fingers'} {aimDirection} of the pin, held together at arm's length
+        </p>
+      )}
     </section>
   );
 }
@@ -272,6 +282,7 @@ export default function Home() {
             <AimRecommendation
               aimOffsetYards={distances.center.playsLike.aimOffsetYards}
               aimDirection={distances.center.playsLike.aimDirection}
+              rawDistance={distances.center.raw}
             />
           )}
 
