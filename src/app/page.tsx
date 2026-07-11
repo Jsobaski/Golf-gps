@@ -169,8 +169,8 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-6">
-      <header className="flex items-center justify-between">
-        <div>
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="min-w-0">
           <h1 className="text-lg font-bold tracking-tight">Vegas Golf GPS</h1>
           <p className="text-xs text-muted">
             {position
@@ -180,20 +180,20 @@ export default function Home() {
                 : 'Acquiring GPS signal…'}
           </p>
         </div>
-        <label className="flex items-center gap-2 text-xs font-medium text-muted">
+        <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted">
           Slope
           <button
             type="button"
             role="switch"
             aria-checked={slopeEnabled}
             onClick={() => setSlopeEnabled((v) => !v)}
-            className={`relative h-6 w-11 rounded-full transition-colors ${
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
               slopeEnabled ? 'bg-accent' : 'bg-surface-alt'
             }`}
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-foreground transition-transform ${
-                slopeEnabled ? 'translate-x-5' : 'translate-x-0.5'
+              className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-foreground transition-transform ${
+                slopeEnabled ? 'translate-x-5' : 'translate-x-0'
               }`}
             />
           </button>
