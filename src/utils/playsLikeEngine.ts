@@ -97,15 +97,15 @@ export function computePlaysLike(
   };
 }
 
-// AimPoint's green-reading convention: a finger held at arm's length spans
-// roughly 1 degree of visual angle, so the aim correction (a lateral yardage
-// at the target distance) converts to a finger count via that same 1
-// degree-per-finger rule — hold fingers together at arm's length, same as
-// reading a putt, just aimed at the pin instead of the hole.
-const DEGREES_PER_FINGER = 1;
+// A finger held up at arm's length is a rough visual reference: about 1
+// finger of aim adjustment per 10% of the shot's distance in lateral yards
+// (e.g. ~20 yards left on a 200-yard shot is about 1 finger). Scales with
+// distance since the ratio, not the raw yardage, is what stays visually
+// consistent at arm's length.
+const OFFSET_RATIO_PER_FINGER = 0.10;
 
 export function estimateAimFingers(aimOffsetYards: number, rawDistanceYards: number): number {
   if (aimOffsetYards <= 0 || rawDistanceYards <= 0) return 0;
-  const angleDegrees = Math.atan(aimOffsetYards / rawDistanceYards) * (180 / Math.PI);
-  return Math.max(1, Math.round(angleDegrees / DEGREES_PER_FINGER));
+  const offsetRatio = aimOffsetYards / rawDistanceYards;
+  return Math.max(1, Math.round(offsetRatio / OFFSET_RATIO_PER_FINGER));
 }

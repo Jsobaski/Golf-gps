@@ -67,7 +67,7 @@ function AimRecommendation({
       </div>
       {!isStraight && (
         <p className="mt-1 text-right text-xs text-muted">
-          ≈ {fingers} {fingers === 1 ? 'finger' : 'fingers'} {aimDirection} of the pin, held together at arm's length
+          ≈ {fingers} {fingers === 1 ? 'finger' : 'fingers'} {aimDirection} at arm's length
         </p>
       )}
     </section>
