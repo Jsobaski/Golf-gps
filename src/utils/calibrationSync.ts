@@ -1,4 +1,4 @@
-import { CalibrationStore, CalibrationTarget, LatLng } from '@/utils/calibration';
+import { CalibrationStore, CalibrationTarget, CalibrationPoint, LatLng } from '@/utils/calibration';
 
 function isCalibrationTarget(value: string): value is CalibrationTarget {
   return value === 'front' || value === 'center' || value === 'back';
@@ -21,15 +21,19 @@ export async function fetchSharedCalibration(): Promise<CalibrationStore> {
     const holeNumber = Number(holeNumberStr);
     if (!courseId || Number.isNaN(holeNumber) || !target || !isCalibrationTarget(target)) continue;
 
-    try {
-      const parsed = typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
-      const { lat, lng } = parsed as LatLng;
-      if (typeof lat !== 'number' || typeof lng !== 'number') continue;
-      store[courseId] = store[courseId] ?? {};
-      store[courseId][holeNumber] = { ...store[courseId][holeNumber], [target]: { lat, lng } };
-    } catch {
-      // skip malformed entry
-    }
+    const point = rawValue as Partial<CalibrationPoint> | null;
+    if (!point || typeof point.lat !== 'number' || typeof point.lng !== 'number') continue;
+
+    const resolved: CalibrationPoint = {
+      lat: point.lat,
+      lng: point.lng,
+      submissionCount: point.submissionCount ?? 1,
+      outlierCount: point.outlierCount ?? 0,
+      capturedAt: point.capturedAt ?? new Date(0).toISOString(),
+    };
+
+    store[courseId] = store[courseId] ?? {};
+    store[courseId][holeNumber] = { ...store[courseId][holeNumber], [target]: resolved };
   }
 
   return store;

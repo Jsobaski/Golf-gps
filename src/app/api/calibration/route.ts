@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
+import { resolveCalibrationPoint, CalibrationSubmission } from '@/utils/calibration';
 
 const HASH_KEY = 'golf-gps-calibration';
 const TARGETS = ['front', 'center', 'back'] as const;
+const MAX_SUBMISSIONS_PER_POINT = 20;
 
 function getRedis(): Redis | null {
   // Support both the plain Upstash marketplace naming and Vercel's legacy
@@ -17,6 +19,19 @@ function isValidTarget(value: unknown): value is (typeof TARGETS)[number] {
   return typeof value === 'string' && (TARGETS as readonly string[]).includes(value);
 }
 
+function parseSubmissions(rawValue: unknown): CalibrationSubmission[] {
+  try {
+    const parsed = typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (s): s is CalibrationSubmission =>
+        s && typeof s.lat === 'number' && typeof s.lng === 'number' && typeof s.capturedAt === 'string'
+    );
+  } catch {
+    return [];
+  }
+}
+
 export async function GET() {
   const redis = getRedis();
   if (!redis) {
@@ -24,8 +39,16 @@ export async function GET() {
   }
 
   try {
-    const entries = await redis.hgetall<Record<string, unknown>>(HASH_KEY);
-    return NextResponse.json({ entries: entries ?? {} });
+    const raw = await redis.hgetall<Record<string, unknown>>(HASH_KEY);
+    const entries: Record<string, unknown> = {};
+
+    for (const [field, rawValue] of Object.entries(raw ?? {})) {
+      const submissions = parseSubmissions(rawValue);
+      const resolved = resolveCalibrationPoint(submissions);
+      if (resolved) entries[field] = resolved;
+    }
+
+    return NextResponse.json({ entries });
   } catch {
     return NextResponse.json({ error: 'Failed to load shared calibration' }, { status: 502 });
   }
@@ -52,11 +75,18 @@ export async function POST(req: NextRequest) {
   }
 
   const field = `${courseId}:${holeNumber}:${target}`;
-  const value = { lat, lng, capturedAt: new Date().toISOString() };
+  const submission: CalibrationSubmission = { lat, lng, capturedAt: new Date().toISOString() };
 
   try {
-    await redis.hset(HASH_KEY, { [field]: JSON.stringify(value) });
-    return NextResponse.json({ ok: true });
+    const existingRaw = await redis.hget<unknown>(HASH_KEY, field);
+    const submissions = parseSubmissions(existingRaw);
+    submissions.push(submission);
+    // Keep only the most recent N so a heavily-recalibrated point doesn't
+    // grow the hash field unboundedly.
+    const capped = submissions.slice(-MAX_SUBMISSIONS_PER_POINT);
+
+    await redis.hset(HASH_KEY, { [field]: JSON.stringify(capped) });
+    return NextResponse.json({ ok: true, resolved: resolveCalibrationPoint(capped) });
   } catch {
     return NextResponse.json({ error: 'Failed to save calibration' }, { status: 502 });
   }

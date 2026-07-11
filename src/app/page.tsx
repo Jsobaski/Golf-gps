@@ -115,7 +115,8 @@ function CalibrationPanel({
       <p className={`mb-3 text-[10px] ${status.className}`}>{status.text}</p>
       <div className="grid grid-cols-3 gap-2">
         {targets.map(({ key, label }) => {
-          const isSet = Boolean(calibration?.[key]);
+          const point = calibration?.[key];
+          const isSet = Boolean(point);
           return (
             <button
               key={key}
@@ -127,6 +128,12 @@ function CalibrationPanel({
               }`}
             >
               <span>{label}</span>
+              {point && point.submissionCount > 1 && (
+                <span className="text-[9px] opacity-70">
+                  {point.submissionCount} reading{point.submissionCount === 1 ? '' : 's'}
+                  {point.outlierCount > 0 ? ` · ${point.outlierCount} flagged` : ''}
+                </span>
+              )}
               <span className="text-[10px] opacity-80">{isSet ? '✓ calibrated · tap to clear' : 'tap to set'}</span>
             </button>
           );
