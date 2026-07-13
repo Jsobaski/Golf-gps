@@ -40,6 +40,7 @@ export interface CourseWithDistance {
 export interface TargetDistances {
   raw: number;
   playsLike: PlaysLikeResult;
+  bearing: number;
 }
 
 export interface HoleDistances {
@@ -347,7 +348,7 @@ export function useGolfEngine() {
         weather,
         bearing
       );
-      result[key] = { raw: Math.round(raw), playsLike };
+      result[key] = { raw: Math.round(raw), playsLike, bearing };
     }
 
     return result;

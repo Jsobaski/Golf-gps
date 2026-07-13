@@ -1,8 +1,34 @@
 'use client';
 
 import { useGolfEngine, TargetDistances, CalibrationSyncStatus } from '@/hooks/useGolfEngine';
-import { AimDirection, estimateAimFingers } from '@/utils/playsLikeEngine';
+import { AimDirection, WeatherData, estimateAimFingers } from '@/utils/playsLikeEngine';
 import { CalibrationTarget, HoleCalibration } from '@/utils/calibration';
+
+// Angle (compass degrees) the wind is blowing TOWARD, expressed relative to
+// the golfer's bearing to the target — 0 means "away from you, toward the
+// pin" (tailwind), 180 means "at your face" (headwind), matching the
+// up-pointing default orientation of <WindArrow>.
+function windBlowRotation(windDirectionFrom: number, bearingToTarget: number): number {
+  return (((windDirectionFrom + 180) - bearingToTarget) % 360 + 360) % 360;
+}
+
+function WindArrow({ rotationDeg }: { rotationDeg: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-6 w-6 shrink-0 text-accent"
+      style={{ transform: `rotate(${rotationDeg}deg)` }}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="12" y1="20" x2="12" y2="5" />
+      <polyline points="6,10 12,4 18,10" />
+    </svg>
+  );
+}
 
 function DistanceRow({
   label,
@@ -40,10 +66,14 @@ function AimRecommendation({
   aimOffsetYards,
   aimDirection,
   rawDistance,
+  bearing,
+  weather,
 }: {
   aimOffsetYards: number;
   aimDirection: AimDirection;
   rawDistance: number;
+  bearing: number;
+  weather: WeatherData | null;
 }) {
   const isStraight = aimDirection === 'straight';
   const fingers = estimateAimFingers(aimOffsetYards, rawDistance);
@@ -69,6 +99,18 @@ function AimRecommendation({
         <p className="mt-1 text-right text-xs text-muted">
           ≈ {fingers} {fingers === 1 ? 'finger' : 'fingers'} {aimDirection} at arm's length
         </p>
+      )}
+      {weather && weather.windSpeed > 0 && (
+        <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+          <div>
+            <span className="text-xs text-muted">Wind direction</span>
+            <p className="text-[10px] text-muted">↑ blowing toward pin · ↓ blowing at you</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <WindArrow rotationDeg={windBlowRotation(weather.windDirection, bearing)} />
+            <span className="text-sm font-semibold text-foreground">{Math.round(weather.windSpeed)} mph</span>
+          </div>
+        </div>
       )}
     </section>
   );
@@ -290,6 +332,8 @@ export default function Home() {
               aimOffsetYards={distances.center.playsLike.aimOffsetYards}
               aimDirection={distances.center.playsLike.aimDirection}
               rawDistance={distances.center.raw}
+              bearing={distances.center.bearing}
+              weather={weather}
             />
           )}
 
