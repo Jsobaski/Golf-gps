@@ -56,6 +56,7 @@ function DistanceRow({
         <span className="text-xs text-muted">
           yds{slopeEnabled && playsLike.slopeImpact !== 0 ? ` · slope ${playsLike.slopeImpact > 0 ? '+' : ''}${playsLike.slopeImpact}` : ''}
           {playsLike.windImpact !== 0 ? ` · wind ${playsLike.windImpact > 0 ? '+' : ''}${playsLike.windImpact}` : ''}
+          {playsLike.tempImpact !== 0 ? ` · temp ${playsLike.tempImpact > 0 ? '+' : ''}${playsLike.tempImpact}` : ''}
         </span>
       </div>
     </div>
