@@ -160,14 +160,19 @@ function CalibrationPanel({
         {targets.map(({ key, label }) => {
           const point = calibration?.[key];
           const isSet = Boolean(point);
+          const isLocked = Boolean(point?.locked);
           return (
             <button
               key={key}
               type="button"
-              disabled={disabled}
+              disabled={disabled || isLocked}
               onClick={() => (isSet ? onClear(key) : onCalibrate(key))}
-              className={`flex flex-col items-center gap-1 rounded-lg px-2 py-3 text-xs font-medium disabled:opacity-30 ${
-                isSet ? 'bg-accent text-background' : 'bg-surface-alt text-foreground'
+              className={`flex flex-col items-center gap-1 rounded-lg px-2 py-3 text-xs font-medium disabled:opacity-60 ${
+                isLocked
+                  ? 'bg-surface-alt text-muted'
+                  : isSet
+                    ? 'bg-accent text-background'
+                    : 'bg-surface-alt text-foreground'
               }`}
             >
               <span>{label}</span>
@@ -177,7 +182,9 @@ function CalibrationPanel({
                   {point.outlierCount > 0 ? ` · ${point.outlierCount} flagged` : ''}
                 </span>
               )}
-              <span className="text-[10px] opacity-80">{isSet ? '✓ calibrated · tap to clear' : 'tap to set'}</span>
+              <span className="text-[10px] opacity-80">
+                {isLocked ? '🔒 locked · verified' : isSet ? '✓ calibrated · tap to clear' : 'tap to set'}
+              </span>
             </button>
           );
         })}

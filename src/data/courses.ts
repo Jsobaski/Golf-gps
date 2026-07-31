@@ -14,7 +14,7 @@ export interface GolfCourse {
   holes: HoleData[];
 }
 
-interface RealHoleCoordinates {
+export interface RealHoleCoordinates {
   front: { lat: number; lng: number };
   center: { lat: number; lng: number };
   back: { lat: number; lng: number };
@@ -22,8 +22,10 @@ interface RealHoleCoordinates {
 
 // Real green coordinates collected via Google Maps/Earth by testers,
 // keyed by course id then hole number. Falls back to the generated
-// placeholder below for any course/hole not yet in here.
-const REAL_HOLE_COORDINATES: Record<string, Record<number, RealHoleCoordinates>> = {
+// placeholder below for any course/hole not yet in here. Exported so the
+// calibration API/status page can treat these as a "manual" submission
+// in the same averaging pool as tester-calibrated GPS taps.
+export const REAL_HOLE_COORDINATES: Record<string, Record<number, RealHoleCoordinates>> = {
   'tpc-summerlin': {
     1: { front: { lat: 36.184684863912, lng: -115.294655882519 }, center: { lat: 36.1846001484538, lng: -115.294473386061 }, back: { lat: 36.1844781274098, lng: -115.294343150013 } },
     2: { front: { lat: 36.1853174129811, lng: -115.289293912837 }, center: { lat: 36.1853905196818, lng: -115.289074217965 }, back: { lat: 36.1854681900161, lng: -115.288909037014 } },

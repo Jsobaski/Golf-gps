@@ -360,6 +360,7 @@ export function useGolfEngine() {
 
   function calibrateTarget(target: CalibrationTarget) {
     if (!selectedCourse || !currentHole || !position) return;
+    if (calibration[selectedCourse.id]?.[currentHole.holeNumber]?.[target]?.locked) return;
     const point = { lat: position.lat, lng: position.lng };
 
     // Optimistic local save so this works even with a weak signal on the

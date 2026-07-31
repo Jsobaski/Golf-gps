@@ -8,6 +8,19 @@ function isCalibrationTarget(value: string): value is CalibrationTarget {
 // should treat this the same as a network failure and keep working locally.
 export class CalibrationSyncUnavailableError extends Error {}
 
+// The point has been locked by an admin reviewing submissions — no more
+// tester taps are accepted for it.
+export class CalibrationLockedError extends Error {}
+
+function isCalibrationPoint(value: unknown): value is CalibrationPoint {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as CalibrationPoint).lat === 'number' &&
+    typeof (value as CalibrationPoint).lng === 'number'
+  );
+}
+
 export async function fetchSharedCalibration(): Promise<CalibrationStore> {
   const res = await fetch('/api/calibration');
   if (res.status === 503) throw new CalibrationSyncUnavailableError();
@@ -20,23 +33,19 @@ export async function fetchSharedCalibration(): Promise<CalibrationStore> {
     const [courseId, holeNumberStr, target] = field.split(':');
     const holeNumber = Number(holeNumberStr);
     if (!courseId || Number.isNaN(holeNumber) || !target || !isCalibrationTarget(target)) continue;
-
-    const point = rawValue as Partial<CalibrationPoint> | null;
-    if (!point || typeof point.lat !== 'number' || typeof point.lng !== 'number') continue;
-
-    const resolved: CalibrationPoint = {
-      lat: point.lat,
-      lng: point.lng,
-      submissionCount: point.submissionCount ?? 1,
-      outlierCount: point.outlierCount ?? 0,
-      capturedAt: point.capturedAt ?? new Date(0).toISOString(),
-    };
+    if (!isCalibrationPoint(rawValue)) continue;
 
     store[courseId] = store[courseId] ?? {};
-    store[courseId][holeNumber] = { ...store[courseId][holeNumber], [target]: resolved };
+    store[courseId][holeNumber] = { ...store[courseId][holeNumber], [target]: rawValue };
   }
 
   return store;
+}
+
+async function throwOnError(res: Response): Promise<void> {
+  if (res.status === 503) throw new CalibrationSyncUnavailableError();
+  if (res.status === 423) throw new CalibrationLockedError();
+  if (!res.ok) throw new Error(`Calibration request failed (${res.status})`);
 }
 
 export async function pushCalibrationPoint(
@@ -50,10 +59,11 @@ export async function pushCalibrationPoint(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ courseId, holeNumber, target, lat: point.lat, lng: point.lng }),
   });
-  if (res.status === 503) throw new CalibrationSyncUnavailableError();
-  if (!res.ok) throw new Error(`Failed to sync calibration (${res.status})`);
+  await throwOnError(res);
 }
 
+// Clears every submission for a point — used by the main app's "tap to
+// clear" on a target that isn't locked.
 export async function pushClearCalibration(
   courseId: string,
   holeNumber: number,
@@ -64,6 +74,35 @@ export async function pushClearCalibration(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ courseId, holeNumber, target }),
   });
-  if (res.status === 503) throw new CalibrationSyncUnavailableError();
-  if (!res.ok) throw new Error(`Failed to clear shared calibration (${res.status})`);
+  await throwOnError(res);
+}
+
+// Removes one flagged tester submission — used by the calibration review
+// page. Manual (spreadsheet) submissions can't be removed this way.
+export async function deleteCalibrationSubmission(
+  courseId: string,
+  holeNumber: number,
+  target: CalibrationTarget,
+  submissionId: string
+): Promise<void> {
+  const res = await fetch('/api/calibration', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ courseId, holeNumber, target, submissionId }),
+  });
+  await throwOnError(res);
+}
+
+export async function setCalibrationLocked(
+  courseId: string,
+  holeNumber: number,
+  target: CalibrationTarget,
+  locked: boolean
+): Promise<void> {
+  const res = await fetch('/api/calibration', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ courseId, holeNumber, target, locked }),
+  });
+  await throwOnError(res);
 }
