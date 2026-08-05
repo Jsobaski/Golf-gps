@@ -414,6 +414,7 @@ export function useGolfEngine() {
     distances,
     elevationLoading,
     hasRealElevation: currentHole ? holeElevations[currentHole.holeNumber] !== undefined : false,
+    currentHoleElevation: currentHole ? holeElevations[currentHole.holeNumber] ?? null : null,
     holeCalibration,
     calibrateTarget,
     clearCalibrationTarget,
