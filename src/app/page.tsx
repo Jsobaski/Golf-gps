@@ -1,16 +1,8 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useGolfEngine, TargetDistances, CalibrationSyncStatus } from '@/hooks/useGolfEngine';
 import { AimDirection, WeatherData, estimateAimFingers } from '@/utils/playsLikeEngine';
 import { CalibrationTarget, HoleCalibration } from '@/utils/calibration';
-
-// Leaflet touches window/document at import time, so it can only run in the
-// browser — ssr:false keeps Next.js from trying to render it on the server.
-const HoleMap = dynamic(() => import('./components/HoleMap'), {
-  ssr: false,
-  loading: () => <div className="h-[260px] animate-pulse rounded-xl bg-surface-alt" />,
-});
 
 // Angle (compass degrees) the wind is blowing TOWARD, expressed relative to
 // the golfer's bearing to the target — 0 means "away from you, toward the
@@ -219,28 +211,11 @@ export default function Home() {
     distances,
     elevationLoading,
     hasRealElevation,
-    currentHoleElevation,
     holeCalibration,
     calibrateTarget,
     clearCalibrationTarget,
     syncStatus,
   } = useGolfEngine();
-
-  // currentHoleElevation carries the unrounded front/center/back feet
-  // straight from the elevation fetch — used directly rather than backing
-  // this out of the already-rounded slopeImpact numbers, which individually
-  // round to the nearest yard and would amplify that rounding error by
-  // ~4.5x once divided back out by the 0.22 yd/ft constant.
-  const frontToBackFeet =
-    slopeEnabled && currentHoleElevation
-      ? Math.round(currentHoleElevation.back - currentHoleElevation.front)
-      : null;
-  const slopeLabel =
-    frontToBackFeet === null || frontToBackFeet === 0
-      ? null
-      : frontToBackFeet > 0
-        ? `▲ Green rises ${frontToBackFeet} ft, front to back`
-        : `▼ Green drops ${Math.abs(frontToBackFeet)} ft, front to back`;
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-6">
@@ -343,14 +318,6 @@ export default function Home() {
               Next
             </button>
           </section>
-
-          <HoleMap
-            front={currentHole.greenFront}
-            center={currentHole.greenCenter}
-            back={currentHole.greenBack}
-            userPosition={position}
-            slopeLabel={slopeLabel}
-          />
 
           <section className="rounded-xl bg-surface">
             <div className="grid grid-cols-2 border-b border-border px-4 py-2 text-center text-[10px] font-semibold uppercase tracking-widest text-muted">
